@@ -28,7 +28,7 @@ const openai = new OpenAIApi(openAIconfiguration);
 exports.handler = async (event, context) => {
 
   const result = []
-  const tweets = await v2Client.listTweets(process.env.LISTID, {max_results:5 });
+  const tweets = await v2Client.listTweets(process.env.LISTID, {max_results:10 });
   tweets.data.data.forEach(tweet=>{
 
     if (tweet.text.includes("https") && tweet.text.includes("@")){
@@ -43,10 +43,16 @@ exports.handler = async (event, context) => {
 
     }
   })
+  
+  if (result.length == 0) {
+    console.log('No tweets found');
+    return;
+  }
+  const tweet = result[Math.floor(Math.random() * result.length)];
 
     const sentiment = await openai.createCompletion({
       model: "text-davinci-003",
-      prompt: `Decide whether a Tweet's sentiment is funny, sarcastic, informative, inspirational or soulful.\n\nTweet: \"${result[0].tweet}\"\nSentiment: `,
+      prompt: `Decide whether a Tweet's sentiment is funny, sarcastic, informative, inspirational or soulful.\n\nTweet: \"${tweet.tweet}\"\nSentiment: `,
       temperature: 0,
       max_tokens: 60,
       top_p: 1,
@@ -58,7 +64,7 @@ exports.handler = async (event, context) => {
   
     const reply = await openai.createCompletion({
                 model: "text-davinci-003",
-                prompt: `Give a ${sentiment.data.choices[0].text} one-sentence reply to the tweet.\n\n${result[0].tweet.replace(/\n/g, '')}`,
+                prompt: `Give a ${sentiment.data.choices[0].text} one-sentence reply to the tweet.\n\n${tweet.tweet.replace(/\n/g, '')}`,
                 temperature: 1,
                 max_tokens: 140,
                 top_p: 1,
@@ -70,15 +76,15 @@ exports.handler = async (event, context) => {
   
               await v2Client.reply(
                 reply.data.choices[0].text,
-                result[0].id,
+                tweet.id,
               )
 
   return {
     statusCode: 200,
     body:  JSON.stringify({
       sentiment:sentiment.data.choices[0].text,
-      tweet:result[0].tweet,
-      tweetId: result[0].id,
+      tweet:tweet.tweet,
+      tweetId: tweet.id,
       reply: reply.data.choices[0].text
     }),
     headers: {
